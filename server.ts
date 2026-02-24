@@ -11,54 +11,27 @@ async function startServer() {
 
   app.use(express.json());
 
-  // CursorGenie API Endpoint
-  app.post("/api/workflow", async (req, res) => {
-    const input = req.body;
-    
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not set" });
-    }
+  // Mock Patient Database
+  const patients = [
+    { id: "1", name: "Rahul Sharma", age: 34, symptoms: "Fever, Cough", vitals: { hr: 72, bp: "120/80", temp: 98.6 } },
+    { id: "2", name: "Priya Rao", age: 28, symptoms: "Headache", vitals: { hr: 80, bp: "110/70", temp: 99.1 } },
+  ];
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
-    const systemInstruction = `You are CursorGenie, an intelligent AI plugin for Logitech MX Master4 (Actions Ring) + MX Creative Console in Cursor.IDE.
-Your Role: Gesture -> generate React Native telehealth code -> insert via JSON.
+  // Mock API Endpoints for Telehealth Testing
+  app.get("/api/patients", (req, res) => {
+    res.json(patients);
+  });
 
-Rules:
-1. React Native telehealth only (patient fetch, vitals charts, booking UI).
-2. Cursor.IDE format (async functions, hooks, Tailwind).
-3. Bengaluru hospital context (vitals monitoring, appointment flow).
-4. Output MUST be STRICT JSON matching this schema:
-{
-  "action": "code_insert" | "notification",
-  "content": "string (max 300 chars)",
-  "haptic_feedback": "short_vibrate" | "long_pulse" | "none",
-  "next_gesture": "string"
-}
-Respond ONLY with the JSON object. No markdown, no explanations.`;
+  app.get("/api/patients/:id", (req, res) => {
+    const patient = patients.find(p => p.id === req.params.id);
+    if (patient) res.json(patient);
+    else res.status(404).json({ error: "Patient not found" });
+  });
 
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: JSON.stringify(input),
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          temperature: 0.1,
-        },
-      });
-
-      const result = JSON.parse(response.text || "{}");
-      res.json(result);
-    } catch (error) {
-      console.error("Gemini Error:", error);
-      res.status(500).json({ 
-        action: "notification",
-        content: "Error generating telehealth code.",
-        haptic_feedback: "none",
-        next_gesture: "Thumb press to retry"
-      });
-    }
+  app.post("/api/patients", (req, res) => {
+    const newPatient = { id: String(patients.length + 1), ...req.body };
+    patients.push(newPatient);
+    res.status(201).json(newPatient);
   });
 
   // Vite middleware for development

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import debounce from 'lodash/debounce';
+import { generateWorkflow } from './services/geminiService';
 import { 
   RotateCw, 
   MousePointer2, 
@@ -16,7 +17,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-type Gesture = 'ring_rotate_cw' | 'thumb_press' | 'console_dial1_press';
+type Gesture = 'ring_rotate_cw' | 'thumb_press' | 'console_dial1_press' | 'swipe_right';
 type Command = 'refactor_telehealth' | 'patient_api' | 'health_dashboard';
 
 interface WorkflowInput {
@@ -36,6 +37,7 @@ const GESTURES: { id: Gesture; label: string; icon: any; desc: string }[] = [
   { id: 'ring_rotate_cw', label: 'Ring Rotate', icon: RotateCw, desc: 'Scroll or cycle options' },
   { id: 'thumb_press', label: 'Thumb Press', icon: MousePointer2, desc: 'Primary action / Select' },
   { id: 'console_dial1_press', label: 'Console Dial', icon: CircleDot, desc: 'Secondary adjustment' },
+  { id: 'swipe_right', label: 'Swipe Right', icon: ArrowRight, desc: 'Navigate or confirm' },
 ];
 
 const COMMANDS: { id: Command; label: string; desc: string }[] = [
@@ -60,20 +62,21 @@ export default function App() {
     debounce(async (currentInput: WorkflowInput) => {
       setLoading(true);
       try {
-        const response = await fetch('/api/workflow', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(currentInput),
-        });
-        const data = await response.json();
+        const data = await generateWorkflow(currentInput);
         setOutput(data);
         
         if (data.haptic_feedback !== 'none') {
           setHapticActive(true);
           setTimeout(() => setHapticActive(false), 500);
         }
-      } catch (error) {
-        console.error(error);
+      } catch (error: any) {
+        console.error('Workflow Error:', error);
+        setOutput({
+          action: 'notification',
+          content: error.message || "Failed to generate workflow.",
+          haptic_feedback: 'none',
+          next_gesture: 'Check your connection or try again'
+        });
       } finally {
         setLoading(false);
       }
@@ -119,11 +122,23 @@ export default function App() {
           
           {/* Left: Input Configuration */}
           <div className="lg:col-span-5 space-y-10">
-            <header className="space-y-2">
-              <h2 className="text-2xl font-semibold text-white tracking-tight">Gesture Simulator</h2>
-              <p className="text-sm text-zinc-500 leading-relaxed">
-                Configure the hardware state to simulate a real-time event from your Logitech MX device.
-              </p>
+            <header className="space-y-2 flex justify-between items-end">
+              <div>
+                <h2 className="text-2xl font-semibold text-white tracking-tight">Gesture Simulator</h2>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Configure the hardware state to simulate a real-time event from your Logitech MX device.
+                </p>
+              </div>
+              <button 
+                onClick={() => setInput({
+                  gesture: 'ring_rotate_cw',
+                  command: 'health_dashboard',
+                  selected_text: 'const Vitals = ({ hr, temp }) => {\n  return (\n    <View>\n      <Text>Heart Rate: {hr}</Text>\n      <Text>Temperature: {temp}</Text>\n    </View>\n  );\n};'
+                })}
+                className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full bg-blue-500/5 transition-all"
+              >
+                Load Demo
+              </button>
             </header>
 
             <div className="space-y-8">
@@ -245,21 +260,35 @@ export default function App() {
                           </h3>
                           <div className="group relative">
                             <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
-                            <div className="relative bg-black rounded-2xl p-6 border border-white/5 font-mono text-sm leading-relaxed text-blue-100/90 overflow-x-auto whitespace-pre">
+                            <div className="relative bg-black rounded-2xl p-6 border border-white/5 font-mono text-sm leading-relaxed text-blue-100/90 overflow-x-auto whitespace-pre-wrap break-all">
                               {output.content}
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(output.content);
+                                  alert('Code copied to clipboard!');
+                                }}
+                                className="absolute top-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-white/10 text-zinc-400 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                title="Copy Code"
+                              >
+                                <Code2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 p-4 bg-zinc-800/30 rounded-2xl border border-white/5">
-                          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                            <ArrowRight className="text-blue-400 w-5 h-5" />
+                        <button 
+                          onClick={triggerWorkflow}
+                          disabled={loading}
+                          className="w-full flex items-center gap-4 p-5 bg-blue-600 hover:bg-blue-500 rounded-2xl border border-blue-400/30 transition-all group/next disabled:opacity-50 disabled:bg-zinc-800 shadow-xl shadow-blue-900/20"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover/next:scale-110 transition-transform">
+                            <ArrowRight className="text-white w-6 h-6" />
                           </div>
-                          <div>
-                            <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Next Step</p>
-                            <p className="text-sm font-medium text-zinc-300">{output.next_gesture}</p>
+                          <div className="text-left">
+                            <p className="text-[10px] font-mono text-blue-100/60 uppercase tracking-widest font-bold">Click to Execute Next Step</p>
+                            <p className="text-lg font-bold text-white tracking-tight">{output.next_gesture}</p>
                           </div>
-                        </div>
+                        </button>
                       </div>
                     </div>
 
