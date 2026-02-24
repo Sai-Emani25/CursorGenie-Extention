@@ -1,0 +1,5 @@
+{
+  "name": "CursorGenie: Gesture-Powered AI Copilot",
+  "description": "A gesture-powered AI copilot for telehealth prototyping in Cursor.IDE, transforming Logitech MX hardware into an AI 'genie' using the Logitech Actions SDK and Gemini API.",
+  "requestFramePermissions": []
+}
